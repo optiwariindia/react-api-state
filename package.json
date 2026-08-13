@@ -37,16 +37,16 @@
     "hooks",
     "typescript"
   ],
-  "author": "Om Prakash Tiwari<optiwari.india@gmail.com>",
+  "author": "Om Prakash Tiwari <optiwari.india@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/react-api-state/react-api-state.git"
+    "url": "git+https://github.com/optiwariindia/react-api-state.git"
   },
   "bugs": {
-    "url": "https://github.com/react-api-state/react-api-state/issues"
+    "url": "https://github.com/optiwariindia/react-api-state/issues"
   },
-  "homepage": "https://github.com/react-api-state/react-api-state#readme",
+  "homepage": "https://github.com/optiwariindia/react-api-state#readme",
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0"
   },
