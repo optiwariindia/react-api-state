@@ -6,6 +6,7 @@ interface Customer {
   _id: string;
   name: string;
   email?: string;
+  tempId?: string;
 }
 
 class MemoryStorageAdapter<T> implements StorageAdapter<T> {
@@ -70,7 +71,7 @@ describe("ApiStateManager Core Logic", () => {
     expect(manager.getSnapshot().data).toEqual([{ _id: "1", name: "Alice" }]);
   });
 
-  it("should perform optimistic ADD and queue CREATE operation", async () => {
+  it("should perform optimistic ADD and queue CREATE operation with tempId", async () => {
     const manager = new ApiStateManager<Customer>({
       endpoint: "/api/customers",
       storageKey: "cust-key",
@@ -86,8 +87,9 @@ describe("ApiStateManager Core Logic", () => {
     const created = await manager.add({ name: "Bob", email: "bob@test.com" });
 
     expect(created._id).toBe("temp-123");
+    expect(created.tempId).toBe("temp-123");
     expect(manager.getSnapshot().data).toEqual([
-      { _id: "temp-123", name: "Bob", email: "bob@test.com" },
+      { _id: "temp-123", tempId: "temp-123", name: "Bob", email: "bob@test.com" },
     ]);
     expect(manager.getSnapshot().hasPendingChanges).toBe(true);
   });
@@ -131,7 +133,7 @@ describe("ApiStateManager Core Logic", () => {
     expect(manager.getSnapshot().hasPendingChanges).toBe(true);
   });
 
-  it("should synchronize pending operations and replace temporary IDs", async () => {
+  it("should synchronize pending operations, send tempId to server without fake _id, and replace with server _id", async () => {
     const manager = new ApiStateManager<Customer>({
       endpoint: "/api/customers",
       storageKey: "cust-key",
@@ -149,13 +151,15 @@ describe("ApiStateManager Core Logic", () => {
 
     await manager.sync();
 
+    // Verify payload sent to server has tempId and no temporary _id
     expect(mockApi.create).toHaveBeenCalledWith({
-      _id: "temp-555",
+      tempId: "temp-555",
       name: "Charlie",
       email: "charlie@test.com",
     });
     expect(manager.getSnapshot().hasPendingChanges).toBe(false);
     expect(manager.getSnapshot().data[0]._id).toBe("server-id-99");
+    expect(manager.getSnapshot().data[0].tempId).toBe("temp-555");
   });
 
   it("should retain queue and expose error on sync failure", async () => {

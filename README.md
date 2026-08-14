@@ -286,6 +286,12 @@ interface UseApiStateOptions<T> {
   /** Primary key field name on entities. Default: "_id" */
   idField?: keyof T;
 
+  /** Field name for client temporary ID. Default: "tempId" */
+  tempIdField?: string;
+
+  /** Whether to include tempId in create request body to server. Default: true */
+  sendTempId?: boolean;
+
   /** Custom storage key for persistence. Default: derived from endpoint */
   storageKey?: string;
 
@@ -325,18 +331,51 @@ interface UseApiStateOptions<T> {
 
 ---
 
-## 🆔 Temporary ID Resolution
+## 🆔 Temporary IDs & Mongoose / Backend Deduplication
 
-When offline, entities created via `add()` receive temporary unique identifiers:
+When creating entities locally/offline, `react-api-state` generates a client `tempId` (e.g. `local-550e8400-e29b...`) instead of forcing a fake string as the primary `_id`:
 
-```text
-local-550e8400-e29b-41d4-a716-446655440000
+```tsx
+const customers = useApiState<Customer>({
+  endpoint: "/api/customers",
+  idField: "_id",
+  tempIdField: "tempId", // Default: "tempId"
+});
 ```
 
-When the server responds during `sync()` with the real database ID (e.g. `"64a7f289b0123"`):
-1. `react-api-state` replaces the temporary ID in local state `data`.
-2. Replaces references to the temporary ID across all remaining queued operations.
-3. Saves updated state to persistent storage.
+### 1. What happens during local creation (`add`):
+- Local entity state gets:
+  ```json
+  {
+    "_id": "local-550e8400-e29b...",
+    "tempId": "local-550e8400-e29b...",
+    "name": "John Doe"
+  }
+  ```
+- The payload sent to the backend includes `tempId` and **omits the fake string `_id`**, so Mongoose generates a clean `ObjectId`:
+  ```json
+  {
+    "tempId": "local-550e8400-e29b...",
+    "name": "John Doe"
+  }
+  ```
+
+### 2. Server-side Idempotency & Deduplication:
+Your backend / Mongoose can easily check if a request with that `tempId` was already received to prevent duplicate inserts:
+```js
+// In your Express / Mongoose controller:
+const existing = await Customer.findOne({ tempId: req.body.tempId });
+if (existing) return res.json({ status: "success", data: existing });
+
+const customer = await Customer.create(req.body);
+res.json({ status: "success", data: customer });
+```
+
+### 3. Automatic Server ID Replacement:
+When Mongoose responds with the real database `_id` (e.g. `"64a7f289b0123"`):
+- `react-api-state` updates `_id` to `"64a7f289b0123"` while preserving `tempId`.
+- Updates any subsequent pending operations referencing the temporary ID.
+- Reconciles server snapshots by matching `_id` OR `tempId`.
 
 ---
 

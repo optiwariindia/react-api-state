@@ -101,4 +101,35 @@ describe("Reconciler Strategy", () => {
       { id: "temp-user", username: "guest" },
     ]);
   });
+
+  it("should match and merge server snapshot items by tempIdField when real _id is assigned by server", () => {
+    interface MongoCustomer {
+      _id: string;
+      tempId?: string;
+      name: string;
+      status?: string;
+    }
+
+    // Server returned the created item with Mongoose ObjectId "64f1..." and tempId "temp-999"
+    const server: MongoCustomer[] = [
+      { _id: "64f1a2b3c4d5", tempId: "temp-999", name: "Rajesh", status: "active" },
+    ];
+
+    // Local pending queue had create for temp-999
+    const ops: SyncOperation<MongoCustomer>[] = [
+      {
+        id: "op-1",
+        type: "create",
+        entityId: "temp-999",
+        payload: { name: "Rajesh", status: "pending" },
+        createdAt: 100,
+      },
+    ];
+
+    const result = reconcile(server, ops, "_id", "tempId");
+    // Should NOT create duplicate item; should match by tempId and use Mongoose _id
+    expect(result.length).toBe(1);
+    expect(result[0]._id).toBe("64f1a2b3c4d5");
+    expect(result[0].tempId).toBe("temp-999");
+  });
 });

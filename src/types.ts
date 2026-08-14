@@ -156,6 +156,19 @@ export interface UseApiStateOptions<T> {
   autoSync?: boolean;
 
   /**
+   * Field name used to store client-generated temporary IDs on entities (e.g. "tempId" or "_tempId").
+   * Sent to backend to enable idempotency and server deduplication (e.g. Mongoose ObjectId generation).
+   * @default "tempId"
+   */
+  tempIdField?: string;
+
+  /**
+   * Whether to include tempId in the create request payload sent to the server.
+   * @default true
+   */
+  sendTempId?: boolean;
+
+  /**
    * Custom function to generate temporary IDs for offline entity creation.
    * @default internal generator "local-uuid"
    */

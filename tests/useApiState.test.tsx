@@ -6,6 +6,7 @@ import { useApiState } from "../src/useApiState";
 interface Item {
   _id: string;
   name: string;
+  tempId?: string;
 }
 
 describe("useApiState React Hook", () => {
@@ -65,14 +66,18 @@ describe("useApiState React Hook", () => {
       await result.current.add({ name: "New Item" });
     });
 
-    expect(result.current.data).toEqual([{ _id: "temp-99", name: "New Item" }]);
+    expect(result.current.data).toEqual([
+      { _id: "temp-99", tempId: "temp-99", name: "New Item" },
+    ]);
     expect(result.current.hasPendingChanges).toBe(true);
 
     await act(async () => {
       await result.current.update("temp-99", { name: "Updated Item" });
     });
 
-    expect(result.current.data).toEqual([{ _id: "temp-99", name: "Updated Item" }]);
+    expect(result.current.data).toEqual([
+      { _id: "temp-99", tempId: "temp-99", name: "Updated Item" },
+    ]);
 
     await act(async () => {
       await result.current.sync();
@@ -80,6 +85,7 @@ describe("useApiState React Hook", () => {
 
     expect(result.current.hasPendingChanges).toBe(false);
     expect(result.current.data[0]._id).toBe("server-1");
+    expect(result.current.data[0].tempId).toBe("temp-99");
 
     await act(async () => {
       await result.current.delete("server-1");

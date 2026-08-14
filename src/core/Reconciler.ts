@@ -8,46 +8,55 @@ import { IdKey, SyncOperation } from "../types";
  *
  * Unsynchronized local changes (CREATE, UPDATE, DELETE) are replayed on top
  * of the server snapshot so that pending mutations are never destroyed by refresh.
+ *
+ * Supports matching server items by both primary `idField` (e.g. "_id") and client `tempIdField` (e.g. "tempId").
  */
 export function reconcile<T extends Record<string, any>>(
   serverSnapshot: T[],
   pendingOperations: SyncOperation<T>[],
-  idField: IdKey<T>
+  idField: IdKey<T>,
+  tempIdField: string = "tempId"
 ): T[] {
   const itemMap = new Map<string, T>();
+  const tempIdToRealIdMap = new Map<string, string>();
 
   // 1. Populate map with server snapshot items
   for (const item of serverSnapshot) {
     if (item && item[idField] !== undefined && item[idField] !== null) {
       const id = String(item[idField]);
       itemMap.set(id, { ...item });
+
+      if (tempIdField && item[tempIdField]) {
+        tempIdToRealIdMap.set(String(item[tempIdField]), id);
+      }
     }
   }
 
   // 2. Replay pending operations in chronological order
   for (const op of pendingOperations) {
     const entityId = String(op.entityId);
+    const resolvedId = tempIdToRealIdMap.get(entityId) || entityId;
 
     switch (op.type) {
       case "create": {
-        const existing = itemMap.get(entityId);
+        const existing = itemMap.get(resolvedId);
         const newItem = {
-          [idField]: entityId,
+          [idField]: resolvedId,
           ...(op.payload || {}),
         } as unknown as T;
 
         if (existing) {
-          itemMap.set(entityId, { ...existing, ...newItem });
+          itemMap.set(resolvedId, { ...existing, ...newItem });
         } else {
-          itemMap.set(entityId, newItem);
+          itemMap.set(resolvedId, newItem);
         }
         break;
       }
 
       case "update": {
-        const existing = itemMap.get(entityId);
+        const existing = itemMap.get(resolvedId);
         if (existing) {
-          itemMap.set(entityId, {
+          itemMap.set(resolvedId, {
             ...existing,
             ...(op.payload || {}),
           });
@@ -56,7 +65,7 @@ export function reconcile<T extends Record<string, any>>(
       }
 
       case "delete": {
-        itemMap.delete(entityId);
+        itemMap.delete(resolvedId);
         break;
       }
     }

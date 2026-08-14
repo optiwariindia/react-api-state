@@ -30,6 +30,8 @@ export class ApiStateManager<T extends Record<string, any>> {
   private storage: StorageAdapter<T>;
   private api: ApiAdapter<T>;
   private idField: IdKey<T>;
+  private tempIdField: string;
+  private sendTempId: boolean;
   private storageKey: string;
   private autoRefresh: boolean;
   private autoSync: boolean;
@@ -42,6 +44,8 @@ export class ApiStateManager<T extends Record<string, any>> {
 
   constructor(options: UseApiStateOptions<T>) {
     this.idField = options.idField || ("_id" as IdKey<T>);
+    this.tempIdField = options.tempIdField || "tempId";
+    this.sendTempId = options.sendTempId !== false;
 
     const endpointStr =
       typeof options.endpoint === "string" ? options.endpoint : undefined;
@@ -194,7 +198,11 @@ export class ApiStateManager<T extends Record<string, any>> {
   }
 
   public get(id: string): T | undefined {
-    return this.data.find((item) => String(item[this.idField]) === String(id));
+    return this.data.find(
+      (item) =>
+        String(item[this.idField]) === String(id) ||
+        (this.tempIdField in item && String(item[this.tempIdField]) === String(id))
+    );
   }
 
   public set(data: T[]): void {
@@ -204,19 +212,33 @@ export class ApiStateManager<T extends Record<string, any>> {
   }
 
   public async add(data: Partial<T>): Promise<T> {
-    const existingId = data[this.idField];
-    const entityId =
-      existingId !== undefined && existingId !== null && existingId !== ""
-        ? String(existingId)
-        : this.generateTempId();
+    const hasExplicitId =
+      data[this.idField] !== undefined &&
+      data[this.idField] !== null &&
+      data[this.idField] !== "";
+
+    const tempId = this.generateTempId();
+    const entityId = hasExplicitId ? String(data[this.idField]) : tempId;
 
     const newItem = {
       [this.idField]: entityId,
+      ...(this.sendTempId ? { [this.tempIdField]: tempId } : {}),
       ...data,
     } as unknown as T;
 
     this.data = [...this.data, newItem];
-    this.queue.add("create", entityId, newItem);
+
+    const payload: any = {
+      ...(this.sendTempId ? { [this.tempIdField]: tempId } : {}),
+      ...data,
+    };
+
+    // If ID was generated temporarily, don't send fake string ID in idField so Mongoose generates real ObjectId
+    if (!hasExplicitId) {
+      delete payload[this.idField];
+    }
+
+    this.queue.add("create", entityId, payload);
     this.notify();
 
     await this.saveStorage();
@@ -230,7 +252,9 @@ export class ApiStateManager<T extends Record<string, any>> {
 
   public async update(id: string, changes: Partial<T>): Promise<T> {
     const existingIndex = this.data.findIndex(
-      (item) => String(item[this.idField]) === String(id)
+      (item) =>
+        String(item[this.idField]) === String(id) ||
+        (this.tempIdField in item && String(item[this.tempIdField]) === String(id))
     );
 
     let updatedItem: T;
@@ -265,7 +289,9 @@ export class ApiStateManager<T extends Record<string, any>> {
 
   public async delete(id: string): Promise<void> {
     this.data = this.data.filter(
-      (item) => String(item[this.idField]) !== String(id)
+      (item) =>
+        String(item[this.idField]) !== String(id) &&
+        !(this.tempIdField in item && String(item[this.tempIdField]) === String(id))
     );
 
     this.queue.add("delete", id);
@@ -284,7 +310,12 @@ export class ApiStateManager<T extends Record<string, any>> {
 
     try {
       const serverSnapshot = await this.api.list();
-      this.data = reconcile(serverSnapshot, this.queue.operations, this.idField);
+      this.data = reconcile(
+        serverSnapshot,
+        this.queue.operations,
+        this.idField,
+        this.tempIdField
+      );
       this.error = null;
       await this.saveStorage();
     } catch (err) {
@@ -324,11 +355,22 @@ export class ApiStateManager<T extends Record<string, any>> {
                 ? String(serverId)
                 : op.entityId;
 
-            this.data = this.data.map((item) =>
-              String(item[this.idField]) === op.entityId
-                ? { ...item, ...(created || {}), [this.idField]: realIdStr }
-                : item
-            );
+            this.data = this.data.map((item) => {
+              const isMatch =
+                String(item[this.idField]) === op.entityId ||
+                (this.tempIdField in item &&
+                  String(item[this.tempIdField]) === op.entityId);
+
+              if (isMatch) {
+                return {
+                  ...item,
+                  ...(created || {}),
+                  [this.idField]: realIdStr,
+                  ...(this.sendTempId ? { [this.tempIdField]: op.entityId } : {}),
+                };
+              }
+              return item;
+            });
 
             if (realIdStr !== op.entityId) {
               this.queue.replaceEntityId(
