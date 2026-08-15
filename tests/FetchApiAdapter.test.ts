@@ -7,7 +7,7 @@ interface Item {
 }
 
 describe("FetchApiAdapter", () => {
-  it("should make list GET request to endpoint", async () => {
+  it("should make list GET request when no search parameters are provided", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -28,6 +28,55 @@ describe("FetchApiAdapter", () => {
       }),
     });
     expect(list).toEqual([{ id: "1", name: "Alpha" }]);
+  });
+
+  it("should make POST request with body when search parameters are passed to list()", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => [{ id: "2", name: "Searched Item" }],
+    });
+
+    const adapter = new FetchApiAdapter<Item>({
+      endpoint: "/api/items",
+      fetch: mockFetch as any,
+    });
+
+    const list = await adapter.list({ query: "phone", minPrice: 100 });
+    expect(mockFetch).toHaveBeenCalledWith("/api/items", {
+      method: "POST",
+      headers: expect.objectContaining({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({ query: "phone", minPrice: 100 }),
+    });
+    expect(list).toEqual([{ id: "2", name: "Searched Item" }]);
+  });
+
+  it("should make POST request with body when search options are configured in adapter options", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => [{ id: "3", name: "Config Search Item" }],
+    });
+
+    const adapter = new FetchApiAdapter<Item>({
+      endpoint: "/api/items",
+      search: { status: "active" },
+      fetch: mockFetch as any,
+    });
+
+    const list = await adapter.list();
+    expect(mockFetch).toHaveBeenCalledWith("/api/items", {
+      method: "POST",
+      headers: expect.objectContaining({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({ status: "active" }),
+    });
+    expect(list).toEqual([{ id: "3", name: "Config Search Item" }]);
   });
 
   it("should default to PUT for create and PUT for update", async () => {

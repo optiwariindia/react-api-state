@@ -16,16 +16,16 @@ import { ApiState, UseApiStateOptions } from "./types";
  * const customers = useApiState<Customer>("/api/customers");
  * ```
  */
-export function useApiState<T extends Record<string, any>>(
-  endpointOrOptions: string | UseApiStateOptions<T>
-): ApiState<T> {
-  const options: UseApiStateOptions<T> =
+export function useApiState<T extends Record<string, any>, S = any>(
+  endpointOrOptions: string | UseApiStateOptions<T, S>
+): ApiState<T, S> {
+  const options: UseApiStateOptions<T, S> =
     typeof endpointOrOptions === "string"
       ? { endpoint: endpointOrOptions }
       : endpointOrOptions;
 
   const manager = useMemo(() => {
-    return getOrCreateStateManager<T>(options);
+    return getOrCreateStateManager<T, S>(options);
   }, [options.storageKey, options.endpoint]);
 
   const snapshot = useSyncExternalStore(
@@ -42,12 +42,14 @@ export function useApiState<T extends Record<string, any>>(
     [manager]
   );
   const deleteItem = useCallback((id: string) => manager.delete(id), [manager]);
-  const refresh = useCallback(() => manager.refresh(), [manager]);
+  const search = useCallback((params?: S) => manager.search(params), [manager]);
+  const refresh = useCallback((params?: S) => manager.refresh(params), [manager]);
   const sync = useCallback(() => manager.sync(), [manager]);
   const clear = useCallback(() => manager.clear(), [manager]);
 
   return {
     data: snapshot.data,
+    searchParams: manager.getSearchParams(),
     loading: snapshot.loading,
     syncing: snapshot.syncing,
     error: snapshot.error,
@@ -60,6 +62,7 @@ export function useApiState<T extends Record<string, any>>(
     update,
     delete: deleteItem,
 
+    search,
     refresh,
     sync,
     clear,

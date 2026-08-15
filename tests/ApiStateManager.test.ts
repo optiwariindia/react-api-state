@@ -187,4 +187,26 @@ describe("ApiStateManager Core Logic", () => {
     expect(manager.getSnapshot().hasPendingChanges).toBe(true);
     expect(manager.get("temp-err")).toBeDefined();
   });
+
+  it("should trigger search and update searchParams via search() and refresh()", async () => {
+    const manager = new ApiStateManager<Customer, { query: string }>({
+      endpoint: "/api/customers",
+      storageKey: "cust-key",
+      storage: memoryStorage,
+      api: mockApi,
+      autoRefresh: false,
+      autoSync: false,
+    });
+
+    await manager.init();
+
+    await manager.search({ query: "active users" });
+
+    expect(mockApi.list).toHaveBeenCalledWith({ query: "active users" });
+    expect(manager.getSearchParams()).toEqual({ query: "active users" });
+
+    await manager.refresh({ query: "pending users" });
+    expect(mockApi.list).toHaveBeenCalledWith({ query: "pending users" });
+    expect(manager.getSearchParams()).toEqual({ query: "pending users" });
+  });
 });

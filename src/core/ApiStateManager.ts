@@ -19,16 +19,17 @@ export function defaultGenerateTempId(): string {
   return `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export class ApiStateManager<T extends Record<string, any>> {
+export class ApiStateManager<T extends Record<string, any>, S = any> {
   private data: T[] = [];
   private loading = true;
   private syncing = false;
   private error: Error | null = null;
   private isOfflineState = false;
+  private searchParams: S | undefined = undefined;
 
   private queue: OperationQueue<T> = new OperationQueue<T>();
   private storage: StorageAdapter<T>;
-  private api: ApiAdapter<T>;
+  private api: ApiAdapter<T, S>;
   private idField: IdKey<T>;
   private tempIdField: string;
   private sendTempId: boolean;
@@ -42,10 +43,14 @@ export class ApiStateManager<T extends Record<string, any>> {
   private initPromise: Promise<void> | null = null;
   private syncPromise: Promise<void> | null = null;
 
-  constructor(options: UseApiStateOptions<T>) {
+  constructor(options: UseApiStateOptions<T, S>) {
     this.idField = options.idField || ("_id" as IdKey<T>);
     this.tempIdField = options.tempIdField || "tempId";
     this.sendTempId = options.sendTempId !== false;
+    this.searchParams =
+      options.search !== undefined
+        ? options.search
+        : options.searchParams;
 
     const endpointStr =
       typeof options.endpoint === "string" ? options.endpoint : undefined;
@@ -56,7 +61,7 @@ export class ApiStateManager<T extends Record<string, any>> {
     this.storage = options.storage || new LocalStorageAdapter<T>();
 
     if (options.api && typeof (options.api as any).list === "function") {
-      this.api = options.api as ApiAdapter<T>;
+      this.api = options.api as ApiAdapter<T, S>;
     } else if (options.api && typeof (options.api as any).request === "function") {
       this.api = new FetchApiAdapter<T>({
         endpoint: endpointStr,
@@ -64,6 +69,7 @@ export class ApiStateManager<T extends Record<string, any>> {
         headers: options.headers,
         fetch: options.fetch,
         method: options.method,
+        search: this.searchParams,
       });
     } else {
       const endpointConfig: EndpointConfig =
@@ -76,6 +82,7 @@ export class ApiStateManager<T extends Record<string, any>> {
         headers: options.headers,
         fetch: options.fetch,
         method: options.method,
+        search: this.searchParams,
         ...endpointConfig,
       });
     }
@@ -187,6 +194,10 @@ export class ApiStateManager<T extends Record<string, any>> {
     }
     return this.cachedSnapshot!;
   };
+
+  public getSearchParams(): S | undefined {
+    return this.searchParams;
+  }
 
   private async saveStorage(): Promise<void> {
     const state: StoredState<T> = {
@@ -304,12 +315,19 @@ export class ApiStateManager<T extends Record<string, any>> {
     }
   }
 
-  public async refresh(): Promise<void> {
+  public async search(params?: S): Promise<void> {
+    return this.refresh(params);
+  }
+
+  public async refresh(params?: S): Promise<void> {
+    if (params !== undefined) {
+      this.searchParams = params;
+    }
     this.loading = true;
     this.notify();
 
     try {
-      const serverSnapshot = await this.api.list();
+      const serverSnapshot = await this.api.list(this.searchParams);
       this.data = reconcile(
         serverSnapshot,
         this.queue.operations,
@@ -414,19 +432,19 @@ export class ApiStateManager<T extends Record<string, any>> {
 }
 
 // Global registry of stores to ensure singleton state sharing per key
-const storeRegistry = new Map<string, ApiStateManager<any>>();
+const storeRegistry = new Map<string, ApiStateManager<any, any>>();
 
-export function getOrCreateStateManager<T extends Record<string, any>>(
-  options: UseApiStateOptions<T>
-): ApiStateManager<T> {
+export function getOrCreateStateManager<T extends Record<string, any>, S = any>(
+  options: UseApiStateOptions<T, S>
+): ApiStateManager<T, S> {
   const endpointStr =
     typeof options.endpoint === "string" ? options.endpoint : undefined;
   const key = options.storageKey || endpointStr || "react-api-state-default";
 
   if (!storeRegistry.has(key)) {
-    storeRegistry.set(key, new ApiStateManager<T>(options));
+    storeRegistry.set(key, new ApiStateManager<T, S>(options));
   }
-  return storeRegistry.get(key) as ApiStateManager<T>;
+  return storeRegistry.get(key) as ApiStateManager<T, S>;
 }
 
 export function clearStoreRegistry(): void {

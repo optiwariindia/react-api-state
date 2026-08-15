@@ -57,8 +57,8 @@ export interface StorageAdapter<T> {
 /**
  * Abstract API interface for CRUD operations.
  */
-export interface ApiAdapter<T> {
-  list(): Promise<T[]>;
+export interface ApiAdapter<T, S = any> {
+  list(search?: S): Promise<T[]>;
   create(data: Partial<T>): Promise<T>;
   update(id: string, changes: Partial<T>): Promise<T>;
   delete(id: string): Promise<void>;
@@ -83,6 +83,14 @@ export interface EndpointConfig {
     update?: "PUT" | "PATCH";
   };
   /**
+   * Optional search parameters. When present, list requests will be sent via POST with this body.
+   */
+  search?: any;
+  /**
+   * Alias for search parameters.
+   */
+  searchParams?: any;
+  /**
    * Optional transformer function to unwrap or extract data from custom API response envelopes.
    */
   transformResponse?: (response: any) => any;
@@ -95,7 +103,7 @@ export interface EndpointConfig {
 /**
  * Configuration options for `useApiState`.
  */
-export interface UseApiStateOptions<T> {
+export interface UseApiStateOptions<T, S = any> {
   /**
    * Base REST endpoint string (e.g. "/api/customers") or endpoint configuration object.
    */
@@ -106,6 +114,16 @@ export interface UseApiStateOptions<T> {
    * @default "_id"
    */
   idField?: IdKey<T>;
+
+  /**
+   * Initial search parameters. When present, list requests will use POST method with body.
+   */
+  search?: S;
+
+  /**
+   * Alias for search parameters.
+   */
+  searchParams?: S;
 
   /**
    * Custom storage key for offline persistence.
@@ -123,7 +141,7 @@ export interface UseApiStateOptions<T> {
    * Custom API adapter instance, API client instance, or endpoint config.
    * @default FetchApiAdapter using endpoint / API client
    */
-  api?: ApiAdapter<T> | API | EndpointConfig;
+  api?: ApiAdapter<T, S> | API | EndpointConfig;
 
   /**
    * Configure HTTP methods for API operations (e.g. create with PUT, update with PUT).
@@ -178,11 +196,16 @@ export interface UseApiStateOptions<T> {
 /**
  * Object returned by `useApiState`.
  */
-export interface ApiState<T> {
+export interface ApiState<T, S = any> {
   /**
    * Current collection data (optimistically updated).
    */
   data: T[];
+
+  /**
+   * Current search parameters if applied.
+   */
+  searchParams: S | undefined;
 
   /**
    * Loading state (true during initial load or refresh).
@@ -235,9 +258,15 @@ export interface ApiState<T> {
   delete(id: string): Promise<void>;
 
   /**
-   * Fetch fresh snapshot from server and reconcile with pending local operations.
+   * Trigger server-side search using POST body. Updates local collection.
    */
-  refresh(): Promise<void>;
+  search(params?: S): Promise<void>;
+
+  /**
+   * Fetch fresh snapshot from server and reconcile with pending local operations.
+   * If search parameters are provided or present, sends a POST request with body.
+   */
+  refresh(params?: S): Promise<void>;
 
   /**
    * Sync pending operations with the server.

@@ -148,4 +148,32 @@ describe("useApiState React Hook", () => {
 
     expect(result.current.isOffline).toBe(false);
   });
+
+  it("should trigger search with parameters via search() method", async () => {
+    const mockList = vi.fn().mockResolvedValue([{ _id: "10", name: "Found Product" }]);
+    const mockApi = {
+      list: mockList,
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    const { result } = renderHook(() =>
+      useApiState<Item, { keyword: string }>({
+        endpoint: "/api/items",
+        storageKey: "test-hook-5",
+        api: mockApi,
+        autoRefresh: false,
+        autoSync: false,
+      })
+    );
+
+    await act(async () => {
+      await result.current.search({ keyword: "laptop" });
+    });
+
+    expect(mockList).toHaveBeenCalledWith({ keyword: "laptop" });
+    expect(result.current.searchParams).toEqual({ keyword: "laptop" });
+    expect(result.current.data).toEqual([{ _id: "10", name: "Found Product" }]);
+  });
 });

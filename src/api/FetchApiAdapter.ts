@@ -134,19 +134,40 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
     return new Error(errorMessage);
   }
 
-  async list(): Promise<T[]> {
+  async list(search?: any): Promise<T[]> {
     const headers = await this.getHeaders();
     const url = this.getListUrl();
 
+    const searchPayload =
+      search !== undefined && search !== null
+        ? search
+        : this.config.search !== undefined
+        ? this.config.search
+        : this.config.searchParams;
+
+    const hasSearch =
+      searchPayload !== undefined &&
+      searchPayload !== null &&
+      (typeof searchPayload !== "object" || Object.keys(searchPayload).length > 0);
+
     let raw: any;
     if (this.config.fetch) {
-      const resp = await this.config.fetch(url, { method: "GET", headers });
+      const resp = await this.config.fetch(url, {
+        method: hasSearch ? "POST" : "GET",
+        headers: {
+          ...(hasSearch ? { "Content-Type": "application/json" } : {}),
+          ...headers,
+        },
+        ...(hasSearch ? { body: JSON.stringify(searchPayload) } : {}),
+      });
       if (!resp.ok) {
         throw await this.parseFetchError(resp);
       }
       raw = await resp.json();
     } else {
-      raw = await this.client.get(url, { headers });
+      raw = hasSearch
+        ? await this.client.post(url, searchPayload, { headers })
+        : await this.client.get(url, { headers });
     }
 
     const processed = this.processResult(raw);

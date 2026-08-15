@@ -89,6 +89,7 @@ The `useApiState<T>()` hook exposes a strongly-typed object:
 | Property / Method | Type | Description |
 | :--- | :--- | :--- |
 | `data` | `T[]` | Current local collection data (optimistically updated). |
+| `searchParams` | `S \| undefined` | Current search parameters if applied. |
 | `loading` | `boolean` | `true` during initial storage load or server refresh. |
 | `syncing` | `boolean` | `true` while pending operations are being sent to the server. |
 | `error` | `Error \| null` | Error object if the last sync or refresh failed. |
@@ -99,7 +100,8 @@ The `useApiState<T>()` hook exposes a strongly-typed object:
 | `add(data)` | `(data: Partial<T>) => Promise<T>` | Optimistically add item locally & queue a `CREATE` operation. |
 | `update(id, changes)` | `(id: string, changes: Partial<T>) => Promise<T>` | Optimistically update item locally & queue an `UPDATE` operation. |
 | `delete(id)` | `(id: string) => Promise<void>` | Optimistically remove item locally & queue a `DELETE` operation. |
-| `refresh()` | `() => Promise<void>` | Fetch fresh snapshot from server and reconcile with pending operations. |
+| `search(params)` | `(params?: S) => Promise<void>` | Trigger server-side search sending parameters via `POST` body. |
+| `refresh(params?)` | `(params?: S) => Promise<void>` | Fetch fresh snapshot from server (sends `POST` body if search params present). |
 | `sync()` | `() => Promise<void>` | Send pending local operations to the server. |
 | `clear()` | `() => void` | Clear local data and operation queue. |
 
@@ -216,8 +218,9 @@ export function CustomerApp() {
 
 ### Default HTTP Methods
 
-By default, `react-api-state` uses:
-- **`GET [endpoint]`** to fetch/list all records (`refresh()`)
+By default, `react-api-state` follows your system conventions:
+- **`GET [endpoint]`** to fetch/list all records when no search parameters are present (`refresh()`)
+- **`POST [endpoint]`** with request body when search parameters are present (`search({ ... })` or `refresh({ ... })`)
 - **`PUT [endpoint]`** to create new records (`add()`)
 - **`PUT [endpoint]/:id`** to update existing records (`update()`)
 - **`DELETE [endpoint]/:id`** to delete records (`delete()`)
@@ -232,6 +235,50 @@ const customers = useApiState<Customer>({
     update: "PATCH", // Override default PUT to use PATCH
   },
 });
+```
+
+---
+
+## 🔎 Server-Side Search (POST Method with Body)
+
+When search parameters are provided, `react-api-state` automatically executes a **`POST`** request to the endpoint with the search parameters as JSON body:
+
+```tsx
+interface SearchFilter {
+  query?: string;
+  category?: string;
+  minPrice?: number;
+}
+
+export function ProductCatalog() {
+  const products = useApiState<Product, SearchFilter>({
+    endpoint: "/api/products",
+    search: { category: "electronics" }, // Initial search filter (sends POST /api/products)
+  });
+
+  const handleSearch = (text: string) => {
+    // Sends POST /api/products with { query: text, category: "electronics" }
+    products.search({ query: text, category: "electronics" });
+  };
+
+  return (
+    <div>
+      <input
+        type="text"
+        placeholder="Search products..."
+        onChange={(e) => handleSearch(e.target.value)}
+      />
+
+      {products.loading && <p>Searching...</p>}
+
+      <ul>
+        {products.data.map((p) => (
+          <li key={p._id}>{p.name} - ₹{p.price}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 ```
 
 ---
