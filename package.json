@@ -1,6 +1,6 @@
 {
   "name": "react-api-state",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "React API state management with offline-first persistence, synchronization, caching, and optimistic updates.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
