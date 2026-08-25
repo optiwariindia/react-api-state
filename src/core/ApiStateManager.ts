@@ -54,9 +54,10 @@ export class ApiStateManager<T extends Record<string, any>, S = any> {
 
     const endpointStr =
       typeof options.endpoint === "string" ? options.endpoint : undefined;
+    const endpointsStr = options.endpoints?.join(",");
 
     this.storageKey =
-      options.storageKey || endpointStr || "react-api-state-default";
+      options.storageKey || endpointStr || endpointsStr || "react-api-state-default";
 
     this.storage = options.storage || new LocalStorageAdapter<T>();
 
@@ -65,6 +66,7 @@ export class ApiStateManager<T extends Record<string, any>, S = any> {
     } else if (options.api && typeof (options.api as any).request === "function") {
       this.api = new FetchApiAdapter<T>({
         endpoint: endpointStr,
+        endpoints: options.endpoints,
         apiClient: options.api as any,
         headers: options.headers,
         fetch: options.fetch,
@@ -79,6 +81,7 @@ export class ApiStateManager<T extends Record<string, any>, S = any> {
 
       this.api = new FetchApiAdapter<T>({
         endpoint: endpointStr,
+        endpoints: options.endpoints,
         headers: options.headers,
         fetch: options.fetch,
         method: options.method,
@@ -439,7 +442,8 @@ export function getOrCreateStateManager<T extends Record<string, any>, S = any>(
 ): ApiStateManager<T, S> {
   const endpointStr =
     typeof options.endpoint === "string" ? options.endpoint : undefined;
-  const key = options.storageKey || endpointStr || "react-api-state-default";
+  const endpointsStr = options.endpoints?.join(",");
+  const key = options.storageKey || endpointStr || endpointsStr || "react-api-state-default";
 
   if (!storeRegistry.has(key)) {
     storeRegistry.set(key, new ApiStateManager<T, S>(options));
