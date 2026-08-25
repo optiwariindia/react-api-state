@@ -3,6 +3,7 @@ import { API } from "./API";
 
 export interface FetchApiAdapterOptions extends EndpointConfig {
   endpoint?: string;
+  endpoints?: string[];
   apiClient?: API;
 }
 
@@ -56,6 +57,9 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
   private getCreateUrl(): string {
     if (this.config.create) return this.config.create;
     if (this.config.endpoint) return this.config.endpoint;
+    if (this.config.endpoints && this.config.endpoints.length > 0) {
+      throw new Error("Mutations are not supported when using multiple endpoints unless a specific create URL is provided.");
+    }
     throw new Error("Endpoint or create URL must be specified.");
   }
 
@@ -70,6 +74,9 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
       const base = this.config.endpoint.replace(/\/$/, "");
       return `${base}/${encodeURIComponent(id)}`;
     }
+    if (this.config.endpoints && this.config.endpoints.length > 0) {
+      throw new Error("Mutations are not supported when using multiple endpoints unless a specific update URL is provided.");
+    }
     throw new Error("Endpoint or update URL must be specified.");
   }
 
@@ -83,6 +90,9 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
     if (this.config.endpoint) {
       const base = this.config.endpoint.replace(/\/$/, "");
       return `${base}/${encodeURIComponent(id)}`;
+    }
+    if (this.config.endpoints && this.config.endpoints.length > 0) {
+      throw new Error("Mutations are not supported when using multiple endpoints unless a specific delete URL is provided.");
     }
     throw new Error("Endpoint or delete URL must be specified.");
   }
@@ -134,9 +144,8 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
     return new Error(errorMessage);
   }
 
-  async list(search?: any): Promise<T[]> {
+  private async fetchListFromUrl(url: string, search?: any): Promise<T[]> {
     const headers = await this.getHeaders();
-    const url = this.getListUrl();
 
     const searchPayload =
       search !== undefined && search !== null
@@ -181,6 +190,27 @@ export class FetchApiAdapter<T> implements ApiAdapter<T> {
       if (Array.isArray(processed.results)) return processed.results;
     }
     return [];
+  }
+
+  async list(search?: any): Promise<T[]> {
+    if (this.config.endpoints && Array.isArray(this.config.endpoints) && this.config.endpoints.length > 0) {
+      const results = await Promise.allSettled(
+        this.config.endpoints.map(url => this.fetchListFromUrl(url, search))
+      );
+
+      let combinedData: T[] = [];
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          combinedData = combinedData.concat(result.value);
+        } else {
+          console.warn(`[FetchApiAdapter] Failed to fetch from endpoint:`, result.reason);
+        }
+      }
+      return combinedData;
+    }
+
+    const url = this.getListUrl();
+    return this.fetchListFromUrl(url, search);
   }
 
   async create(data: Partial<T>): Promise<T> {

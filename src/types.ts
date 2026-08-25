@@ -76,6 +76,10 @@ export interface EndpointConfig {
   create?: string;
   update?: string | ((id: string) => string);
   delete?: string | ((id: string) => string);
+  /**
+   * Array of URLs. Multiple endpoints for fetching data only.
+   */
+  endpoints?: string[];
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
   fetch?: typeof fetch;
   method?: {
@@ -108,6 +112,11 @@ export interface UseApiStateOptions<T, S = any> {
    * Base REST endpoint string (e.g. "/api/customers") or endpoint configuration object.
    */
   endpoint?: string;
+
+  /**
+   * Array of URLs. Multiple endpoints for fetching data only.
+   */
+  endpoints?: string[];
 
   /**
    * Field name used as unique identifier on entities.

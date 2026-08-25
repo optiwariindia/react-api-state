@@ -17,16 +17,18 @@ import { ApiState, UseApiStateOptions } from "./types";
  * ```
  */
 export function useApiState<T extends Record<string, any>, S = any>(
-  endpointOrOptions: string | UseApiStateOptions<T, S>
+  endpointOrOptions: string | string[] | UseApiStateOptions<T, S>
 ): ApiState<T, S> {
   const options: UseApiStateOptions<T, S> =
     typeof endpointOrOptions === "string"
       ? { endpoint: endpointOrOptions }
+      : Array.isArray(endpointOrOptions)
+      ? { endpoints: endpointOrOptions }
       : endpointOrOptions;
 
   const manager = useMemo(() => {
     return getOrCreateStateManager<T, S>(options);
-  }, [options.storageKey, options.endpoint]);
+  }, [options.storageKey, options.endpoint, options.endpoints?.join(",")]);
 
   const snapshot = useSyncExternalStore(
     manager.subscribe,
