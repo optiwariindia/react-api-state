@@ -100,6 +100,10 @@ dispatching.
 - 🛡️ ****Zero Heavy Dependencies****: Designed specifically for
 modern React 18 & React 19 with full TypeScript type safety.
 
+- 🔀 ****Multiple Endpoints Aggregation****: Concurrently fetch and
+aggregate data from multiple REST endpoints with `Promise.allSettled`
+and fault-tolerant fallback.
+
 ---
 
 **## 🎯 Where `react-api-state` Fits
@@ -229,7 +233,7 @@ return (
 
 **## 📖 Hook API Reference**
 
-The `useApiState<T>()` hook exposes a strongly-typed object:
+The `useApiState<T, S>()` hook accepts an endpoint URL string, an array of endpoint URLs (`string[]`), or a configuration options object (`UseApiStateOptions<T, S>`), and exposes a strongly-typed object:
 
 | Property / Method | Type | Description |
 
@@ -568,6 +572,87 @@ return (
 
 ---
 
+**## 🔀 Multiple Endpoints (Aggregated Fetching)**
+
+`react-api-state` supports concurrently fetching and aggregating data from multiple REST endpoints into a unified local state collection.
+
+**### 1. Shorthand Array Syntax**
+
+You can pass an array of endpoint URLs directly to `useApiState`:
+
+```tsx
+import { useApiState } from "react-api-state";
+
+interface Product {
+  _id: string;
+  name: string;
+  price: number;
+}
+
+export function MultiStoreCatalog() {
+  // Concurrently fetch and merge products from multiple endpoints
+  const products = useApiState<Product>([
+    "/api/store-north/products",
+    "/api/store-south/products",
+    "/api/store-east/products",
+  ]);
+
+  if (products.loading) return <p>Loading catalog from multiple stores...</p>;
+
+  return (
+    <ul>
+      {products.data.map((item) => (
+        <li key={item._id}>
+          {item.name} - ₹{item.price}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**### 2. Options Object (`endpoints` field)**
+
+You can also pass `endpoints` in the options configuration object:
+
+```tsx
+const products = useApiState<Product>({
+  endpoints: [
+    "/api/store-north/products",
+    "/api/store-south/products",
+  ],
+  storageKey: "combined-store-products",
+});
+```
+
+**### 3. Fault Tolerance with `Promise.allSettled`**
+
+- Requests to all configured endpoints execute concurrently using `Promise.allSettled`.
+- If an individual endpoint fails (e.g. 500 error or network unreachable), a warning is logged and the remaining successful endpoints are combined into the collection.
+- Local offline persistence automatically persists the combined dataset.
+
+**### 4. Mutations with Multiple Endpoints**
+
+Multiple endpoints are designed for **data aggregation**. Because `react-api-state` cannot automatically infer which endpoint a mutation (`add`, `update`, `delete`) should target, attempting mutations without explicit mutation endpoints will throw an error.
+
+To perform mutations alongside multiple fetch endpoints, configure explicit mutation URLs:
+
+```tsx
+const products = useApiState<Product>({
+  endpoints: [
+    "/api/store-north/products",
+    "/api/store-south/products",
+  ],
+  api: {
+    create: "/api/store-primary/products",
+    update: (id) => `/api/store-primary/products/${id}`,
+    delete: (id) => `/api/store-primary/products/${id}`,
+  },
+});
+```
+
+---
+
 **## ✉️ Response Envelopes & Error Detection**
 
 `react-api-state` handles API envelopes automatically:
@@ -636,27 +721,37 @@ transformResponse: (res) => res.result.payload,
 
 ```ts
 
-interface UseApiStateOptions<T> {
+interface UseApiStateOptions<T, S = any> {
 
-/** Base REST endpoint string (e.g. "/api/customers") */
+/** Base REST endpoint string (e.g. "/api/customers") */
 
 endpoint?: string;
+
+/** Array of URLs. Multiple endpoints for fetching data only */
+
+endpoints?: string[];
 
 /** Primary key field name on entities. Default: "_id" */
 
 idField?: keyof T;
 
+/** Initial search parameters. When present, list requests will use POST method with body */
+
+search?: S;
+
+/** Alias for search parameters */
+
+searchParams?: S;
+
 /** Field name for client temporary ID. Default: "tempId" */
 
 tempIdField?: string;
 
-/** Whether to include tempId in create request body to server.
-Default: true */
+/** Whether to include tempId in create request body to server. Default: true */
 
 sendTempId?: boolean;
 
-/** Custom storage key for persistence. Default: derived from endpoint
-*/
+/** Custom storage key for persistence. Default: derived from endpoint or endpoints */
 
 storageKey?: string;
 
@@ -664,13 +759,18 @@ storageKey?: string;
 
 storage?: StorageAdapter<T>;
 
-/** Custom API adapter instance, API client instance, or endpoint
-config */
+/** Custom API adapter instance, API client instance, or endpoint config */
 
-api?: ApiAdapter<T> | API | EndpointConfig;
+api?: ApiAdapter<T, S> | API | EndpointConfig;
 
-/** Automatically refresh from API on initialization. Default: true
-*/
+/** Configure HTTP methods for API operations (e.g. create with PUT/POST, update with PUT/PATCH) */
+
+method?: {
+  create?: "PUT" | "POST";
+  update?: "PUT" | "PATCH";
+};
+
+/** Automatically refresh from API on initialization. Default: true */
 
 autoRefresh?: boolean;
 
@@ -684,8 +784,7 @@ fetch?: typeof fetch;
 
 /** Dynamic or static headers */
 
-headers?: Record<string, string> | (() => Promise<Record<string,
-string>>);
+headers?: Record<string, string> | (() => Promise<Record<string, string>>);
 
 /** Custom temporary ID generator */
 

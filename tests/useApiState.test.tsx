@@ -176,4 +176,35 @@ describe("useApiState React Hook", () => {
     expect(result.current.searchParams).toEqual({ keyword: "laptop" });
     expect(result.current.data).toEqual([{ _id: "10", name: "Found Product" }]);
   });
+
+  it("should support passing multiple endpoints as an array", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+      if (url === "/api/source1") {
+        return { ok: true, json: async () => [{ _id: "1", name: "Source 1 Item" }] };
+      }
+      if (url === "/api/source2") {
+        return { ok: true, json: async () => [{ _id: "2", name: "Source 2 Item" }] };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    const { result } = renderHook(() =>
+      useApiState<Item>({
+        endpoints: ["/api/source1", "/api/source2"],
+        fetch: fetchMock as unknown as typeof fetch,
+        autoRefresh: true,
+        autoSync: false,
+      })
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.data).toEqual([
+      { _id: "1", name: "Source 1 Item" },
+      { _id: "2", name: "Source 2 Item" },
+    ]);
+  });
 });
