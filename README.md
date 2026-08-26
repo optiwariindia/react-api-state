@@ -236,58 +236,23 @@ return (
 The `useApiState<T, S>()` hook accepts an endpoint URL string, an array of endpoint URLs (`string[]`), or a configuration options object (`UseApiStateOptions<T, S>`), and exposes a strongly-typed object:
 
 | Property / Method | Type | Description |
-
 | :--- | :--- | :--- |
-
-| `data` | `T[]` | Current local collection data
-(optimistically updated). |
-
-| `searchParams` | `S | undefined` | Current search parameters
-if applied. |
-
-| `loading` | `boolean` | `true` during initial storage load or
-server refresh. |
-
-| `syncing` | `boolean` | `true` while pending operations are
-being sent to the server. |
-
-| `error` | `Error | null` | Error object if the last sync or
-refresh failed. |
-
-| `isOffline` | `boolean` | Whether the environment is currently
-offline (`navigator.onLine`). |
-
-| `hasPendingChanges` | `boolean` | `true` if there are
-unsynchronized operations in the queue. |
-
-| `get(id)` | `(id: string) => T | undefined` | Retrieve an
-item from current local state by ID. |
-
-| `set(data)` | `(data: T[]) => void` | Directly replace
-current local state (does ****not**** queue sync operations). |
-
-| `add(data)` | `(data: Partial<T>) => Promise<T>` |
-Optimistically add item locally & queue a `CREATE` operation. |
-
-| `update(id, changes)` | `(id: string, changes: Partial<T>) =>
-Promise<T>` | Optimistically update item locally & queue an
-`UPDATE` operation. |
-
-| `delete(id)` | `(id: string) => Promise<void>` |
-Optimistically remove item locally & queue a `DELETE` operation. |
-
-| `search(params)` | `(params?: S) => Promise<void>` | Trigger
-server-side search sending parameters via `POST` body. |
-
-| `refresh(params?)` | `(params?: S) => Promise<void>` | Fetch
-fresh snapshot from server (sends `POST` body if search params
-present). |
-
-| `sync()` | `() => Promise<void>` | Send pending local
-operations to the server. |
-
-| `clear()` | `() => void` | Clear local data and operation
-queue. |
+| `data` | `T[]` | Current local collection data (optimistically updated). |
+| `searchParams` | `S | undefined` | Current search parameters if applied. |
+| `loading` | `boolean` | `true` during initial storage load or server refresh. |
+| `syncing` | `boolean` | `true` while pending operations are being sent to the server. |
+| `error` | `Error | null` | Error object if the last sync or refresh failed. |
+| `isOffline` | `boolean` | Whether the environment is currently offline (`navigator.onLine`). |
+| `hasPendingChanges` | `boolean` | `true` if there are unsynchronized operations in the queue. |
+| `get(id)` | `(id: string) => T | undefined` | Retrieve an item from current local state by ID. |
+| `set(data)` | `(data: T[]) => void` | Directly replace current local state (does ****not**** queue sync operations). |
+| `add(data)` | `(data: Partial<T>) => Promise<T>` | Optimistically add item locally & queue a `CREATE` operation. |
+| `update(id, changes)` | `(id: string, changes: Partial<T>) => Promise<T>` | Optimistically update item locally & queue an `UPDATE` operation. |
+| `delete(id)` | `(id: string) => Promise<void>` | Optimistically remove item locally & queue a `DELETE` operation. |
+| `search(params)` | `(params?: S) => Promise<void>` | Trigger server-side search sending parameters via `POST` body. |
+| `refresh(params?)` | `(params?: S) => Promise<void>` | Fetch fresh snapshot from server (sends `POST` body if search params present). |
+| `sync()` | `() => Promise<void>` | Send pending local operations to the server. |
+| `clear()` | `() => void` | Clear local data and operation queue. |
 
 ---
 
